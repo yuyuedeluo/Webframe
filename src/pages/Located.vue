@@ -598,6 +598,8 @@ async function centerToMe() {
     />
   </section>
 </template>
+
+
 <style scoped>
 /* ===== 顏色與整體風格 ===== */
 :root {
@@ -650,7 +652,7 @@ async function centerToMe() {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
-  padding: 0 14px 10px;
+  padding: 4px 10px 0;
 }
 :global(.pop-chip) {
   font-size: 0.75rem;
@@ -661,8 +663,8 @@ async function centerToMe() {
   color: var(--fg);
 }
 :global(.pop-chip--accent) {
-  background: var(--accent);
-  color: white;
+  background: #58d2eb;
+  color: rgb(255, 255, 255);
   border-color: transparent;
   font-weight: 700;
 }
@@ -683,12 +685,12 @@ async function centerToMe() {
   appearance: none;
   cursor: pointer;
   border-radius: 10px;
-  font-weight: 700;
+  font-weight: 400;
   font-size: 0.95rem;
   padding: 10px 14px;
   border: 1px solid var(--accent);
-  background: var(--accent);
-  color: white;
+  background: #58d2eb;
+  color: rgb(255, 255, 255);
   transition: filter 0.15s ease, transform 0.02s ease;
 }
 :global(.pop-btn:hover) {

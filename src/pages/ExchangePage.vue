@@ -1,4 +1,182 @@
+<script setup lang="ts">
+import { ref, computed, onMounted } from 'vue'
+import { useAuth } from '@/composables/useAuth'
+/* ===== API base ===== */
+const API_BASE = (import.meta.env.VITE_API_BASE as string) || ''
+const MERCH_URL    = `${API_BASE}/api/merch`
+const PURCHASE_URL = `${API_BASE}/api/purchase`
+const POINTS_URL   = `${API_BASE}/api/points/me`
+const showErrorDialog = ref(false)
+const errorMessage = ref('')
+
+/* ===== 型別 ===== */
+type ApiRow = {
+  id: number
+  productName: string
+  price: number
+  pictureURL: string
+  tag: 'food' | 'travel' | 'entertain'
+}
+type ApiResp = { data: ApiRow[] }
+
+type Product = {
+  id: number
+  name: string
+  points: number
+  image: string
+  food: boolean
+  travel: boolean
+  entertain: boolean
+}
+
+/* ===== 狀態 ===== */
+const currentTag = ref<'all'|'food'|'travel'|'entertain'>('all')
+const showDialog = ref(false)
+const success = ref(false)
+const selectedProduct = ref<Product | null>(null)
+
+const products = ref<Product[]>([])
+const loading = ref(false)
+const errorMsg = ref<string | null>(null)
+
+const points = ref<number>(0)          // 目前點數
+const purchasing = ref<boolean>(false) // 購買中
+
+/* ===== 工具 ===== */
+function normalizeImg(url: string) {
+  if (!url) return ''
+  if (/^https?:\/\//i.test(url)) return url
+  // 統一走後端 /assets/（你有 VITE_API_BASE）
+  const clean = url.replace(/^\.?\/*assets\/*/, '')
+  return `${API_BASE}/assets/${clean}`
+}
+
+/* ===== 拉商品 ===== */
+async function loadMerch() {
+  loading.value = true
+  errorMsg.value = null
+  try {
+    const r = await fetch(MERCH_URL, { headers: { Accept: 'application/json' } })
+    if (!r.ok) throw new Error(`HTTP ${r.status}`)
+    const j = (await r.json()) as ApiResp
+    const rows = Array.isArray(j.data) ? j.data : []
+
+    products.value = rows.map(row => ({
+      id: row.id,
+      name: row.productName,
+      points: row.price,
+      image: normalizeImg(row.pictureURL),
+      food: row.tag === 'food',
+      travel: row.tag === 'travel',
+      entertain: row.tag === 'entertain',
+    }))
+  } catch (e: any) {
+    errorMsg.value = e?.message ?? '讀取失敗'
+    products.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
+/* ===== 拉 points ===== */
+async function fetchPoints() {
+  const { authHeader } = useAuth()
+  const r = await fetch(POINTS_URL, { headers: { ...authHeader() } })
+  if (!r.ok) throw new Error(`points GET HTTP ${r.status}`)
+
+  // Swagger 標成 "string"，這裡做兼容解析
+  const raw = await r.text()
+  try {
+    const j = JSON.parse(raw)
+    if (typeof j === 'number') { points.value = j; return }
+    if (j && typeof j.points === 'number') { points.value = j.points; return }
+  } catch {}
+  // 純數字字串
+  const n = Number(raw)
+  points.value = Number.isFinite(n) ? n : 0
+}
+
+/* ===== 篩選與對話框 ===== */
+const setFilter = (tag: 'all'|'food'|'travel'|'entertain') => { currentTag.value = tag }
+
+const filteredProducts = computed(() => {
+  if (currentTag.value === 'all') return products.value
+  return products.value.filter(p => p[currentTag.value])
+})
+
+const openConfirm = (p: Product) => {
+  selectedProduct.value = p
+  success.value = false
+  showDialog.value = true
+}
+const closeDialog = () => { showDialog.value = false }
+
+/* ===== 購買（兌換） ===== */
+const confirmRedeem = async () => {
+  if (!selectedProduct.value || purchasing.value) return
+  purchasing.value = true
+  try {
+    const body = {
+      item_id:  selectedProduct.value.id,
+      count:    1,
+      timestamp: new Date().toISOString(),
+    }
+    const r = await fetch(PURCHASE_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        ...useAuth().authHeader(),
+      },
+      body: JSON.stringify(body),
+    })
+
+    if (!r.ok) {
+      // 嘗試讀取後端錯誤訊息
+      let msg = `purchase HTTP ${r.status}`
+      try {
+        const txt = await r.text()
+        const j = JSON.parse(txt)
+        msg = j?.detail || j?.message || txt || msg
+      } catch {}
+      throw new Error(msg)
+    }
+
+    // 刷新 points
+    await fetchPoints()
+
+    // ✅ 成功動畫（沿用你的 success 對話框）
+    success.value = true
+    setTimeout(() => { showDialog.value = false }, 1500)
+  } catch (e: any) {
+    console.error(e)
+    // ❌ 失敗：關閉確認對話框，改開錯誤彈窗
+    showDialog.value = false
+    errorMessage.value = e?.message || '兌換失敗，請稍後再試'
+    showErrorDialog.value = true
+  } finally {
+    purchasing.value = false
+  }
+}
+
+
+/* ===== 啟動 ===== */
+onMounted(async () => {
+  // 同步載入商品與點數，但點數失敗不影響頁面
+  const results = await Promise.allSettled([loadMerch(), fetchPoints()])
+  const pointsResult = results[1]
+  if (pointsResult && pointsResult.status === 'rejected') {
+    console.error('fetchPoints failed', pointsResult.reason)
+    // 如果抓分數失敗，不影響頁面顯示
+  }
+})
+</script>
+
+
 <template>
+  <!-- 目前點數 -->
+  <div class="points-bar">目前點數：{{ points }}</div>
+
   <div class="redeem-page">
     <!-- 商品區塊 -->
     <div class="product-container">
@@ -51,119 +229,45 @@
     </div>
 
     <!-- 彈出視窗 -->
+    <!-- 彈出視窗：確認/成功 -->
     <div v-if="showDialog" class="dialog-overlay">
       <div class="dialog-box">
         <p v-if="!success">是否兌換「{{ selectedProduct?.name }}」？</p>
         <p v-else class="success">兌換成功！</p>
 
         <div class="dialog-buttons" v-if="!success">
-          <button class="confirm" @click="confirmRedeem">確定</button>
-          <button class="cancel" @click="closeDialog">取消</button>
+          <button class="confirm" :disabled="purchasing" @click="confirmRedeem">
+            {{ purchasing ? '處理中...' : '確定' }}
+          </button>
+          <button class="cancel" :disabled="purchasing" @click="closeDialog">取消</button>
         </div>
       </div>
     </div>
+
+    <!-- ❌ 錯誤彈窗 -->
+    <div v-if="showErrorDialog" class="dialog-overlay" @click="showErrorDialog=false">
+      <div class="dialog-box error" @click.stop>
+        <h3>兌換失敗</h3>
+        <div class="dialog-buttons">
+          <button class="confirm" @click="showErrorDialog=false">我知道了</button>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
-<script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-
-type ApiRow = {
-  id: number
-  productName: string
-  price: number
-  pictureURL: string
-  tag: 'food' | 'travel' | 'entertain'
-}
-type ApiResp = { data: ApiRow[] }
-
-type Product = {
-  id: number
-  name: string
-  points: number
-  image: string
-  food: boolean
-  travel: boolean
-  entertain: boolean
-}
-
-/* ====== 狀態 ====== */
-const currentTag = ref<'all'|'food'|'travel'|'entertain'>('all')
-const showDialog = ref(false)
-const success = ref(false)
-const selectedProduct = ref<Product | null>(null)
-
-const products = ref<Product[]>([])
-const loading = ref(false)
-const errorMsg = ref<string | null>(null)
-
-/* ====== API ====== */
-// 若有 Vite 代理：VITE_API_BASE 可留空或不設，這裡會變成 '/api/merch'
-const API_BASE = import.meta.env.VITE_API_BASE as string | undefined
-const MERCH_URL = `${API_BASE ?? ''}/api/merch`
-
-function normalizeImg(url: string) {
-  // 統一用 VITE_API_BASE/assets/... 拼接
-  const base = import.meta.env.VITE_API_BASE
-  if (!url) return ''
-  // 若已經是完整網址（含 http），直接回傳
-  if (/^https?:\/\//i.test(url)) return url
-  // 移除開頭的 ./ 或 /assets/
-  const clean = url.replace(/^\.?\/*assets\/*/, '')
-  return `${base}/assets/${clean}`
-}
 
 
-async function loadMerch() {
-  loading.value = true
-  errorMsg.value = null
-  try {
-    const r = await fetch(MERCH_URL, { headers: { Accept: 'application/json' } })
-    if (!r.ok) throw new Error(`HTTP ${r.status}`)
-    const j = (await r.json()) as ApiResp
-    const rows = Array.isArray(j.data) ? j.data : []
-
-    products.value = rows.map(row => ({
-      id: row.id,
-      name: row.productName,
-      points: row.price,
-      image: normalizeImg(row.pictureURL),
-      food: row.tag === 'food',
-      travel: row.tag === 'travel',
-      entertain: row.tag === 'entertain',
-    }))
-  } catch (e: any) {
-    errorMsg.value = e?.message ?? '讀取失敗'
-    products.value = []
-  } finally {
-    loading.value = false
-  }
-}
-
-onMounted(loadMerch)
-
-/* ====== 篩選與對話框 ====== */
-const setFilter = (tag: 'all'|'food'|'travel'|'entertain') => { currentTag.value = tag }
-
-const filteredProducts = computed(() => {
-  if (currentTag.value === 'all') return products.value
-  return products.value.filter(p => p[currentTag.value])
-})
-
-const openConfirm = (p: Product) => {
-  selectedProduct.value = p
-  success.value = false
-  showDialog.value = true
-}
-const closeDialog = () => { showDialog.value = false }
-
-const confirmRedeem = async () => {
-  // TODO: 這裡可串接兌換 API（扣點、寫入紀錄）
-  success.value = true
-  setTimeout(() => { showDialog.value = false }, 2000)
-}
-</script>
 
 <style scoped>
+.points-bar{
+  padding: .6rem 1rem;
+  background:#fff;
+  border-bottom:1px solid #eee;
+  font-weight:700;
+}
+
+
 .redeem-page {
   display: flex;
   flex-direction: column;

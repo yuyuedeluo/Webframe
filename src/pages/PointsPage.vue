@@ -58,7 +58,12 @@ function stopFloating() {
 
 async function fetchPoints() {
   const { authHeader } = useAuth()
-  const r = await fetch(POINTS_URL, { headers: { ...authHeader() } })
+  const r = await fetch(POINTS_URL, {
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeader(),
+    },
+  })
   if (!r.ok) throw new Error(`points GET HTTP ${r.status}`)
 
   // Swagger 標成 "string"，這裡做兼容解析
@@ -102,6 +107,7 @@ async function pollOnce() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        Accept: 'application/json',
         ...authHeader(),
       },
       body: JSON.stringify(payload),
@@ -122,7 +128,7 @@ async function pollOnce() {
       return
     }
 
-    isActive.value = true
+    //isActive.value = true
     triggerPlusOne()
     // 重新向後端拿最新分數（或你也可先本地 +1 再同步）
     try { await fetchPoints() } catch (e) { console.error(e); stopAll() }
