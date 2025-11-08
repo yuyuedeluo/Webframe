@@ -14,15 +14,25 @@ const showPlus  = ref(false)
 const randomX   = ref(0)
 const randomDir = ref(1)
 
+/* ===== Headers helper（區域函式，不能 export） ===== */
+function buildHeadersStrict(base?: Record<string, string>): Headers {
+  const h = new Headers()
+  if (base) for (const [k, v] of Object.entries(base)) h.set(k, v)
+  const { authHeader } = useAuth()
+  const { Authorization } = authHeader() as { Authorization?: string }
+  if (Authorization) h.set('Authorization', Authorization)
+  return h
+}
+
 /* ===== Points & Polling ===== */
 const score  = ref(0)
 let pollId: number | null = null
 let hidePlusTid: number | null = null
 
 // 避免重疊與過期 tick
-let runSeq = 0;           // 每次 start/stop 會遞增，舊 tick 自動失效
-let inFlight = false;     // 正在執行中的 pollOnce
-let rerunNeeded = false;  // 執行中若又到點，收尾後補跑一次
+let runSeq = 0        // 每次 start/stop 會遞增，舊 tick 自動失效
+let inFlight = false  // 正在執行中的 pollOnce
+let rerunNeeded = false // 執行中若又到點，收尾後補跑一次
 
 function isPolling() { return pollId !== null }
 
@@ -63,26 +73,25 @@ function triggerPlusOne() {
   if (now - lastAnimAt < ANIM_COOLDOWN_MS) return // 4 秒內只播一次
   lastAnimAt = now
 
-  randomX.value  = Math.random() * 100 + 50
+  randomX.value   = Math.random() * 100 + 50
   randomDir.value = Math.random() > 0.5 ? 1 : -1
-  showPlus.value = true
+  showPlus.value  = true
   if (hidePlusTid) clearTimeout(hidePlusTid)
   hidePlusTid = window.setTimeout(() => (showPlus.value = false), 3500)
 }
 
 /* ===== Points API ===== */
 async function fetchPoints() {
-  const { authHeader } = useAuth()
-  const r = await fetch(POINTS_URL, { headers: { ...authHeader() } })
+  const r = await fetch(POINTS_URL, { headers: buildHeadersStrict() })
   if (!r.ok) throw new Error(`points GET HTTP ${r.status}`)
 
   // 兼容：純數字 / {"points":123} / {"data":{"points":123}}
   const raw = await r.text()
   try {
     const j = JSON.parse(raw)
-    if (typeof j === 'number')               { score.value = j; return }
-    if (j && typeof j.points === 'number')   { score.value = j.points; return }
-    if (j?.data && typeof j.data.points === 'number') { score.value = j.data.points; return }
+    if (typeof j === 'number')                         { score.value = j; return }
+    if (j && typeof j.points === 'number')             { score.value = j.points; return }
+    if (j?.data && typeof j.data.points === 'number')  { score.value = j.data.points; return }
   } catch {}
   const n = Number(raw)
   score.value = Number.isFinite(n) ? n : 0
@@ -90,13 +99,11 @@ async function fetchPoints() {
 
 /* ===== Presence + Points (one fetchPoints per tick) ===== */
 async function pollOnce(seq: number) {
-  if (seq !== runSeq) return           // 過期
+  if (seq !== runSeq) return                 // 過期
   if (inFlight) { rerunNeeded = true; return } // 避免重疊
   inFlight = true
 
   try {
-    const { authHeader } = useAuth()
-
     // 1) 定位
     const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
       if (!('geolocation' in navigator)) return reject(new Error('此裝置不支援地理定位'))
@@ -115,7 +122,10 @@ async function pollOnce(seq: number) {
     }
     const res = await fetch(`${API_BASE}${API_PATH}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...authHeader() },
+      headers: buildHeadersStrict({
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      }),
       body: JSON.stringify(payload),
     })
     if (!res.ok) throw new Error(`presence HTTP ${res.status}`)
@@ -157,7 +167,6 @@ onUnmounted(() => {
   stopAll()
 })
 </script>
-
 
 <template>
   <div class="btn" :class="{ active: isActive }">
