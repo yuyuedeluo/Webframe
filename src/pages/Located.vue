@@ -90,7 +90,7 @@ onMounted(() => {
     zoom: 14,
     attributionControl: false,
   })
-  map.addControl(new mapboxgl.AttributionControl({ compact: true }), 'bottom-right')
+//  map.addControl(new mapboxgl.AttributionControl({ compact: true }), 'bottom-right')
   map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right')
 
   map.on('load', () => {
@@ -291,11 +291,11 @@ function selectAllDists(all: boolean) {
 
 <style scoped>
 .page { position: relative; width: 100%; height: calc(100vh - 2rem); }
-.map { width: 100%; height: 80%; }
+.map { width: 100%; height: 100%; }
 
 /* 左下角浮動按鈕 */
 .fab {
-  position: relative; left: 12px; top: 1rem;
+  position: absolute; left: 12px; bottom: 3rem;
   padding: .55rem .9rem; border-radius: 999px;
   border: 1px solid #d7dee3; background: #5ab4c5; backdrop-filter: blur(6px);
   box-shadow: 0 4px 16px rgba(0,0,0,.12);
