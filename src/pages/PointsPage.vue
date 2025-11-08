@@ -145,6 +145,8 @@ onUnmounted(() => stopFloating())
   } */
 }
 
+
+
 /* --- 心跳漣漪 --- */
 .pulse {
   position: absolute;
