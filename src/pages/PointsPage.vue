@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onUnmounted } from 'vue'
+import { ref, onUnmounted, onMounted } from 'vue'
 import { useAuth } from '@/composables/useAuth'
 
 const API_BASE = import.meta.env.VITE_API_BASE as string
@@ -8,20 +8,15 @@ const POLL_MS = 5000
 const POINTS_URL = `${API_BASE}/api/points/me`
 
 
-// === 原本的狀態（保留樣式用） ===
 const isActive = ref(false)
-// const showPlus = ref(false)
-// const randomX = ref(0)
-// const randomDir = ref(1)
+const showPlus = ref(false)
+const randomX = ref(0)
+const randomDir = ref(1)
 
-// 新增：多泡泡清單
-type Plus = { id: number; x: number; dir: 1 | -1 }
-const plusList = ref<Plus[]>([])
-const plusTimers: number[] = []  // 可選：記錄計時器做清理
-
-
-// === 新增：分數與輪詢控制 ===
 const score = ref(0)
+const ANIM_COOLDOWN_MS = 4000
+let lastAnimAt = 0
+
 let pollId: number | null = null
 let hidePlusTid: number | null = null
 
@@ -29,7 +24,7 @@ function toggleColor() {
   if (isPolling()) stopAll()
   else {
     isActive.value = true            // << 先亮起
-    startAll()
+    startAll()  
   }
 }
 
@@ -141,23 +136,22 @@ async function pollOnce() {
 
 // 觸發一次 +1 漂浮動畫
 function triggerPlusOne() {
-  const one: Plus = {
-    id: Date.now() + Math.floor(Math.random() * 1000), // 唯一 key
-    x: Math.random() * 100 + 50,
-    dir: Math.random() > 0.5 ? 1 : -1
-  }
-  plusList.value.push(one)
+  const now = Date.now()
+  if (now - lastAnimAt < ANIM_COOLDOWN_MS) return  // ← 節流：4 秒內只播一次
+  lastAnimAt = now
 
-  // 3.5s 後移除這顆泡泡
-  const tid = window.setTimeout(() => {
-    const i = plusList.value.findIndex(p => p.id === one.id)
-    if (i !== -1) plusList.value.splice(i, 1)
-  }, 3500)
-  plusTimers.push(tid)
+  randomX.value = Math.random() * 100 + 50
+  randomDir.value = Math.random() > 0.5 ? 1 : -1
+  showPlus.value = true
+  if (hidePlusTid) clearTimeout(hidePlusTid)
+  hidePlusTid = window.setTimeout(() => (showPlus.value = false), 3500)
 }
 
-onUnmounted(() => {
-  plusTimers.forEach(t => clearTimeout(t))
+onMounted(() => {
+  fetchPoints().catch((e) => {
+    console.error(e)
+    // 如果抓分數失敗，不影響頁面顯示，但你也可選擇 stopAll()
+  })
 })
 </script>
 
@@ -166,18 +160,16 @@ onUnmounted(() => {
     <!-- 分數顯示 -->
     <div class="score">{{ score }}</div>
 
-    <!-- +1 漂浮效果（可同時多顆） -->
-    <transition-group name="float" tag="div">
+    <!-- +1 漂浮效果 -->
+    <transition name="float">
       <div
-        v-for="p in plusList"
-        :key="p.id"
+        v-if="showPlus"
         class="plusOne"
-        :style="{ '--x': p.x + 'px', '--dir': p.dir as any }"
+        :style="{ '--x': randomX + 'px', '--dir': randomDir as any }"
       >
         +1
       </div>
-    </transition-group>
-
+    </transition>
 
     <!-- 主按鈕 -->
     <button 
