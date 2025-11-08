@@ -193,16 +193,12 @@ onMounted(async () => {
   }
 })
 
-// 原本的 pointsIcon 改成你的圖
-const pointsIcon = ref<string>('coin.png')  // ← 放到 public 下即可直接引用
-const isUrl = (v: string) => true  // 用圖片就固定走 <img>，簡化判斷
 </script>
 
 
 <template>
   <!-- 目前點數 -->
   <div class="points-left">
-    <img :src="pointsIcon" alt="coin" class="points-icon" />
     <span class="points-title">目前點數：{{ points }}</span>
   </div>
 
