@@ -2,6 +2,7 @@
 import { onMounted, onBeforeUnmount, ref, computed, watch } from 'vue'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
+import * as turf from '@turf/turf'                 // <— 新增：Turf
 import FilterModal from '@/components/FilterModal.vue'
 
 /* ===== 篩選狀態 ===== */
@@ -24,8 +25,101 @@ const mapEl = ref<HTMLDivElement | null>(null)
 
 const SOURCE_ID = 'sports-src'
 const LAYER_ID = 'sports-pts'
+const HALO_SOURCE_ID = 'sports-halo'
+const HALO_FILL_ID = 'sports-halo-fill'
+const HALO_LINE_ID = 'sports-halo-line'
+const RIPPLE_SOURCE_ID = 'ripple-src'
+const RIPPLE_LAYER_ID = 'ripple-layer'
+
 const ROUTE_SOURCE_ID = 'route-src'
 const ROUTE_LAYER_ID = 'route-line'
+
+/** ====== Icon 對應（依類別關鍵字）====== */
+const FALLBACK_ICON = 'running' // public/icons/running.png
+
+// Mapbox 表達式：依 properties.category 取對應 icon 名稱字串
+// 將類別字串轉小寫再做子字串比對（同時支援中英文關鍵字）
+const iconExpression: any = [
+  'let',
+  'cat',
+  ['downcase', ['to-string', ['get', 'category']]],
+
+  // case 依序比對
+  ['case',
+
+    // 籃球
+    ['>=', ['index-of', '籃球', ['var', 'cat']], 0], 'basketball',
+
+    // 羽球 / badminton
+    ['any',
+      ['>=', ['index-of', '羽球', ['var', 'cat']], 0],
+      ['>=', ['index-of', 'badminton', ['var', 'cat']], 0]
+    ], 'badminton',
+
+    // 網球 / 練習壁 / tennis
+    ['any',
+      ['>=', ['index-of', '網球', ['var', 'cat']], 0],
+      ['>=', ['index-of', '練習壁', ['var', 'cat']], 0],
+      ['>=', ['index-of', 'tennis', ['var', 'cat']], 0]
+    ], 'tennis',
+
+    // 棒球 / 壘球 / 棒壘球 / baseball / softball
+    ['any',
+      ['>=', ['index-of', '棒球', ['var', 'cat']], 0],
+      ['>=', ['index-of', '壘球', ['var', 'cat']], 0],
+      ['>=', ['index-of', '棒壘球', ['var', 'cat']], 0],
+      ['>=', ['index-of', 'baseball', ['var', 'cat']], 0],
+      ['>=', ['index-of', 'softball', ['var', 'cat']], 0]
+    ], 'baseball',
+
+    // 足球
+    ['any',
+      ['>=', ['index-of', '足球', ['var', 'cat']], 0],
+      ['>=', ['index-of', 'soccer', ['var', 'cat']], 0]
+    ], 'soccer-player',
+
+    // 溜冰 / 滑板 / 競速
+    ['any',
+      ['>=', ['index-of', '溜冰', ['var', 'cat']], 0],
+      ['>=', ['index-of', '滑板', ['var', 'cat']], 0],
+      ['>=', ['index-of', '競速', ['var', 'cat']], 0]
+    ], 'roller-skater',
+
+    // 槌球
+    ['>=', ['index-of', '槌球', ['var', 'cat']], 0], 'croquet',
+
+    // 排球
+    ['>=', ['index-of', '排球', ['var', 'cat']], 0], 'block',
+
+    // default
+    FALLBACK_ICON
+  ]
+]
+
+// 只載入一次 icons
+async function ensureIconsLoaded() {
+  if (!map) return
+  const loadAndAdd = (name: string, url: string) =>
+    new Promise<void>((resolve, reject) => {
+      if (map!.hasImage(name)) return resolve()
+      map!.loadImage(url, (err, image) => {
+        if (err || !image) return reject(err)
+        map!.addImage(name, image, { pixelRatio: 2 })
+        resolve()
+      })
+    })
+  await Promise.all([
+    loadAndAdd('tennis',         '/icons/tennis.png'),
+    loadAndAdd('soccer-player',  '/icons/soccer-player.png'),
+    loadAndAdd('roller-skater',  '/icons/roller-skater.png'),
+    loadAndAdd('croquet',        '/icons/croquet.png'),
+    loadAndAdd('block',          '/icons/block.png'),
+    loadAndAdd('basketball',     '/icons/basketball.png'),
+    loadAndAdd('baseball',       '/icons/baseball.png'),
+    loadAndAdd('badminton',      '/icons/badminton.png'),
+    loadAndAdd(FALLBACK_ICON,    `/icons/${FALLBACK_ICON}.png`),
+  ])
+}
 
 let userMarker: mapboxgl.Marker | null = null
 let destMarker: mapboxgl.Marker | null = null
@@ -58,7 +152,7 @@ function toGeoJSON(arr: Row[]): GeoJSON.FeatureCollection {
         properties: {
           id: item.id,
           district: item.行政區,
-          site: item.場地,
+          venue: item.場地,
           category: item.類別,
         },
       })),
@@ -72,6 +166,8 @@ async function loadDataset() {
   geojson.value = toGeoJSON(j.data)
   if (map && map.getSource(SOURCE_ID)) {
     (map.getSource(SOURCE_ID) as mapboxgl.GeoJSONSource).setData(geojson.value)
+    // 同步 halo
+    updateHalo()
     fitToData()
     applyFilter()
   }
@@ -89,6 +185,165 @@ const districts = computed(() => {
   return Array.from(s)
 })
 
+/* ===== Halo（固定公尺半徑） ===== */
+function radiusMetersByCategory(cat = '') {
+  const c = String(cat).toLowerCase()
+  if (c.includes('籃球')) return 60
+  if (c.includes('羽球') || c.includes('badminton')) return 40
+  if (c.includes('網球') || c.includes('tennis')) return 50
+  if (c.includes('棒球') || c.includes('壘球')) return 90
+  if (c.includes('足球') || c.includes('soccer')) return 120
+  if (c.includes('溜冰') || c.includes('滑板') || c.includes('競速')) return 50
+  if (c.includes('槌球')) return 45
+  if (c.includes('排球')) return 50
+  return 60
+}
+
+function buildHaloPolygons(pointFC: GeoJSON.FeatureCollection) {
+  const polys: GeoJSON.Feature[] = []
+  for (const f of pointFC.features) {
+    if (!f.geometry || f.geometry.type !== 'Point') continue
+    const [lng, lat] = (f.geometry as any).coordinates as [number, number]
+    const r = radiusMetersByCategory((f.properties as any)?.category)
+    const circle = turf.circle([lng, lat], r, { steps: 64, units: 'meters' })
+    ;(circle as any).properties = { ...(f.properties as any) }
+    polys.push(circle as GeoJSON.Feature)
+  }
+  return turf.featureCollection(polys) as GeoJSON.FeatureCollection
+}
+
+function updateHalo() {
+  if (!map) return
+  const haloFC = buildHaloPolygons(geojson.value)
+  if (map.getSource(HALO_SOURCE_ID)) {
+    (map.getSource(HALO_SOURCE_ID) as mapboxgl.GeoJSONSource).setData(haloFC)
+  } else {
+    map.addSource(HALO_SOURCE_ID, { type: 'geojson', data: haloFC })
+    const colorExpr: any = [
+      'case',
+      ['in', '籃球', ['get', 'category']], '#e76f51',
+      ['any', ['in', '羽球', ['get', 'category']], ['in', 'badminton', ['downcase', ['get','category']]]], '#2a9d8f',
+      ['any', ['in', '網球', ['get', 'category']], ['in', 'tennis', ['downcase', ['get','category']]], ['in', '練習壁', ['get','category']]], '#f4a261',
+      ['any', ['in', '棒球', ['get', 'category']], ['in', '壘球', ['get', 'category']]], '#457b9d',
+      ['any', ['in', '足球', ['get', 'category']], ['in', 'soccer', ['downcase', ['get','category']]]], '#718355',
+      ['any', ['in', '溜冰', ['get','category']], ['in', '滑板', ['get','category']], ['in', '競速', ['get','category']]], '#8d99ae',
+      ['in', '槌球', ['get', 'category']], '#8a5a44',
+      ['in', '排球', ['get', 'category']], '#c77dff',
+      '#6c5ce7'
+    ]
+    // ⬇ 關鍵：把 HALO 插到點位層之前（避免遮住 icon）
+    map.addLayer(
+      { id: HALO_FILL_ID, type: 'fill', source: HALO_SOURCE_ID, paint: { 'fill-color': colorExpr, 'fill-opacity': 0.18 } },
+      LAYER_ID
+    )
+    map.addLayer(
+      { id: HALO_LINE_ID, type: 'line', source: HALO_SOURCE_ID, paint: { 'line-color': colorExpr, 'line-opacity': 0.35, 'line-width': 1 } },
+      LAYER_ID
+    )
+  }
+}
+
+/* ===== Popup 組裝 ===== */
+function pickIconName(category = '') {
+  const c = String(category).toLowerCase()
+  if (c.includes('籃球')) return 'basketball'
+  if (c.includes('羽球') || c.includes('badminton')) return 'badminton'
+  if (c.includes('網球') || c.includes('tennis') || c.includes('練習壁')) return 'tennis'
+  if (c.includes('棒球') || c.includes('壘球') || c.includes('棒壘球') || c.includes('baseball') || c.includes('softball')) return 'baseball'
+  if (c.includes('足球') || c.includes('soccer')) return 'soccer-player'
+  if (c.includes('溜冰') || c.includes('滑板') || c.includes('競速')) return 'roller-skater'
+  if (c.includes('槌球')) return 'croquet'
+  if (c.includes('排球')) return 'block'
+  return FALLBACK_ICON
+}
+
+function buildPopupDOM(f: mapboxgl.MapboxGeoJSONFeature) {
+  const props = f.properties as any
+  const { district, venue, category } = props || {}
+  const [lng, lat] = (f.geometry as any).coordinates as [number, number]
+  const iconName = pickIconName(category)
+  const iconUrl = `/icons/${iconName}.png`
+
+  const wrap = document.createElement('div')
+  wrap.className = 'pop-card'
+
+  const hero = document.createElement('div')
+  hero.className = 'pop-hero'
+  const heroIcon = document.createElement('img')
+  heroIcon.className = 'pop-hero__icon'
+  heroIcon.src = iconUrl
+  heroIcon.alt = iconName
+  hero.appendChild(heroIcon)
+
+  const body = document.createElement('div')
+  body.className = 'pop-body'
+  body.innerHTML = `
+    <div class="pop-title">${venue || '(未命名場地)'}</div>
+    <div class="pop-subtle">${district || ''}｜${category || ''}<br/>
+      <small>${lat.toFixed(5)}, ${lng.toFixed(5)}</small>
+    </div>
+  `
+
+  const tags = document.createElement('div')
+  tags.className = 'pop-tags'
+  const t1 = document.createElement('span'); t1.className='pop-tag'; t1.textContent='導航'
+  const t2 = document.createElement('span'); t2.className='pop-tag'; t2.textContent='可計分場域'
+  const t3 = document.createElement('span'); t3.className='pop-tag'; t3.textContent=(category||'').slice(0,10)
+  tags.append(t1,t2,t3)
+
+  const actions = document.createElement('div'); actions.className='pop-actions'
+  const btnRoute = document.createElement('button'); btnRoute.className='pop-btn pop-btn--primary'; btnRoute.textContent='規劃路線'
+  const btnSave  = document.createElement('button'); btnSave.className='pop-btn'; btnSave.textContent='加入清單'
+
+  btnRoute.addEventListener('click', () => {
+    const q = encodeURIComponent(`${lat},${lng}`)
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${q}`, '_blank')
+  })
+  btnSave.addEventListener('click', async () => {
+    btnSave.disabled = true
+    btnSave.textContent = '已加入 ✓'
+    console.log('Saved:', { venue, lng, lat })
+  })
+
+  actions.append(btnRoute, btnSave)
+  body.append(tags, actions)
+
+  wrap.append(hero, body)
+  return wrap
+}
+
+/* ===== Ripple（點擊漣漪動畫） ===== */
+let rippleAnim: number | null = null
+function startRippleAt(lng: number, lat: number) {
+  if (!map) return
+  if (!map.getSource(RIPPLE_SOURCE_ID)) {
+    map.addSource(RIPPLE_SOURCE_ID, { type: 'geojson', data: { type:'FeatureCollection', features: [] } as any })
+    map.addLayer({
+      id: RIPPLE_LAYER_ID,
+      type: 'circle',
+      source: RIPPLE_SOURCE_ID,
+      paint: { 'circle-color': '#6c5ce7', 'circle-opacity': 0.25, 'circle-radius': 6, 'circle-blur': 0.6 }
+    })
+  }
+  ;(map.getSource(RIPPLE_SOURCE_ID) as mapboxgl.GeoJSONSource).setData({
+    type:'FeatureCollection',
+    features: [{ type:'Feature', geometry:{ type:'Point', coordinates:[lng,lat] }, properties:{} }]
+  } as any)
+
+  const start = performance.now()
+  const DURATION = 1200, MIN_R = 6, MAX_R = 55
+  if (rippleAnim) cancelAnimationFrame(rippleAnim)
+  ;(function animate(t?: number){
+    const now = t ?? performance.now()
+    const prog = ((now - start) % DURATION) / DURATION
+    const radius = MIN_R + (MAX_R - MIN_R) * prog
+    const opacity = 0.35 * (1 - prog)
+    map!.setPaintProperty(RIPPLE_LAYER_ID, 'circle-radius', radius)
+    map!.setPaintProperty(RIPPLE_LAYER_ID, 'circle-opacity', opacity)
+    rippleAnim = requestAnimationFrame(animate)
+  })()
+}
+
 /* ===== Map 初始化 ===== */
 onMounted(async () => {
   map = new mapboxgl.Map({
@@ -100,33 +355,50 @@ onMounted(async () => {
   })
   map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right')
 
-  map.on('load', () => {
-    if (!map!.getSource(SOURCE_ID)) map!.addSource(SOURCE_ID, { type: 'geojson', data: geojson.value })
+  map.on('load', async () => {
+    await ensureIconsLoaded() // 先把圖示載好
+
+    if (!map!.getSource(SOURCE_ID)) {
+      map!.addSource(SOURCE_ID, { type: 'geojson', data: geojson.value })
+    }
+
+    // 1) icon points
     if (!map!.getLayer(LAYER_ID)) {
       map!.addLayer({
         id: LAYER_ID,
-        type: 'circle',
+        type: 'symbol',
         source: SOURCE_ID,
-        paint: {
-          'circle-radius': 6,
-          'circle-color': [
-            'match',
-            ['get', 'category'],
-            '溜冰場', '#9b59b6',
-            /* default */ '#2c9ae0',
-          ],
-          'circle-stroke-width': 1,
-          'circle-stroke-color': '#fff',
-        },
+        layout: {
+          'icon-image': iconExpression,
+          'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 0.06, 14, 0.16, 18, 0.13],
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': true
+        }
       })
     }
+
+    // 2) halo polygons
+    updateHalo()
+
     applyFilter()
   })
 
+  // 點擊：彈卡片 + 漣漪 + 規劃路線（沿用你的路線流程）
   map.on('click', LAYER_ID, async (e) => {
     const f = e.features?.[0]
     if (!f) return
     const dest = (f.geometry as any).coordinates as [number, number]
+
+    // 美宣 popup + flyTo + 漣漪
+    new mapboxgl.Popup({ offset: 14, closeOnClick: true, className: 'popup--elev' })
+      .setLngLat(dest)
+      .setDOMContent(buildPopupDOM(f))
+      .addTo(map!)
+
+    map!.flyTo({ center: dest, zoom: Math.max(map!.getZoom(), 15), speed: 0.9, curve: 1.5 })
+    startRippleAt(dest[0], dest[1])
+
+    // 你的原本路線邏輯
     try {
       const pos = await getCurrentPosition()
       const start: [number, number] = [pos.coords.longitude, pos.coords.latitude]
@@ -154,7 +426,10 @@ onMounted(async () => {
   selectedDists.value = [...districts.value]
 })
 
-onBeforeUnmount(() => map?.remove())
+onBeforeUnmount(() => {
+  if (rippleAnim) cancelAnimationFrame(rippleAnim)
+  map?.remove()
+})
 
 /* ===== 視野與篩選 ===== */
 function fitToData() {
@@ -165,11 +440,16 @@ function fitToData() {
 }
 
 function applyFilter() {
-  if (!map?.getLayer(LAYER_ID)) return
+  if (!map) return
   const catFilter: any = ['in', ['get', 'category'], ['literal', selectedCats.value]]
   const distFilter: any = ['in', ['get', 'district'], ['literal', selectedDists.value]]
-  map!.setFilter(LAYER_ID, ['all', catFilter, distFilter])
-  map!.once('idle', () => {
+  const combined: any = ['all', catFilter, distFilter]
+
+  if (map.getLayer(LAYER_ID)) map.setFilter(LAYER_ID, combined)
+  if (map.getLayer(HALO_FILL_ID)) map.setFilter(HALO_FILL_ID, combined)
+  if (map.getLayer(HALO_LINE_ID)) map.setFilter(HALO_LINE_ID, combined)
+
+  map.once('idle', () => {
     if (!currentDest.value) return
     const [dx, dy] = currentDest.value
     const feats = map!.queryRenderedFeatures({ layers: [LAYER_ID] })
@@ -235,7 +515,6 @@ function clearRoute() {
   currentDest.value = null
 }
 </script>
-
 
 <template>
   <section class="page">
