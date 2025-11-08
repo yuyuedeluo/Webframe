@@ -10,9 +10,15 @@ const POINTS_URL = `${API_BASE}/api/points/me`
 
 // === 原本的狀態（保留樣式用） ===
 const isActive = ref(false)
-const showPlus = ref(false)
-const randomX = ref(0)
-const randomDir = ref(1)
+// const showPlus = ref(false)
+// const randomX = ref(0)
+// const randomDir = ref(1)
+
+// 新增：多泡泡清單
+type Plus = { id: number; x: number; dir: 1 | -1 }
+const plusList = ref<Plus[]>([])
+const plusTimers: number[] = []  // 可選：記錄計時器做清理
+
 
 // === 新增：分數與輪詢控制 ===
 const score = ref(0)
@@ -121,8 +127,6 @@ async function pollOnce() {
       return
     }
 
-    // ✅ 在範圍內：背景保持呼吸動畫、觸發一次 +1、score+1
-    // ✅ 在範圍內
     isActive.value = true
     triggerPlusOne()
     // 重新向後端拿最新分數（或你也可先本地 +1 再同步）
@@ -137,14 +141,24 @@ async function pollOnce() {
 
 // 觸發一次 +1 漂浮動畫
 function triggerPlusOne() {
-  randomX.value = Math.random() * 100 + 50
-  randomDir.value = Math.random() > 0.5 ? 1 : -1
-  showPlus.value = true
-  if (hidePlusTid) clearTimeout(hidePlusTid)
-  hidePlusTid = window.setTimeout(() => (showPlus.value = false), 3500)
+  const one: Plus = {
+    id: Date.now() + Math.floor(Math.random() * 1000), // 唯一 key
+    x: Math.random() * 100 + 50,
+    dir: Math.random() > 0.5 ? 1 : -1
+  }
+  plusList.value.push(one)
+
+  // 3.5s 後移除這顆泡泡
+  const tid = window.setTimeout(() => {
+    const i = plusList.value.findIndex(p => p.id === one.id)
+    if (i !== -1) plusList.value.splice(i, 1)
+  }, 3500)
+  plusTimers.push(tid)
 }
 
-onUnmounted(() => stopAll())
+onUnmounted(() => {
+  plusTimers.forEach(t => clearTimeout(t))
+})
 </script>
 
 <template>
@@ -152,16 +166,18 @@ onUnmounted(() => stopAll())
     <!-- 分數顯示 -->
     <div class="score">{{ score }}</div>
 
-    <!-- +1 漂浮效果 -->
-    <transition name="float">
+    <!-- +1 漂浮效果（可同時多顆） -->
+    <transition-group name="float" tag="div">
       <div
-        v-if="showPlus"
+        v-for="p in plusList"
+        :key="p.id"
         class="plusOne"
-        :style="{ '--x': randomX + 'px', '--dir': randomDir as any }"
+        :style="{ '--x': p.x + 'px', '--dir': p.dir as any }"
       >
         +1
       </div>
-    </transition>
+    </transition-group>
+
 
     <!-- 主按鈕 -->
     <button 
