@@ -147,10 +147,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .actions { display: inline-flex; gap: .5rem; }
 .btn {
   font-size: .85rem; padding: .35rem .65rem;
-  border-radius: 8px; border: 1px solid #d7dee3; background: #5ab4c5;
+  border-radius: 8px; border: 1px solid #d7dee3; background: #58d2eb;
   cursor: pointer;
 }
-.btn.primary { border-color: #5ab4c5; background: #5ab4c5; color: #fff; }
+.btn.primary { border-color: #58d2eb; background: #58d2eb; color: #fff; }
 .btn.primary:hover { filter: brightness(.95); }
 
 .checks { display: flex; flex-wrap: wrap; gap: .5rem .75rem; }

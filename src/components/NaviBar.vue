@@ -67,8 +67,8 @@ const sliderStyle = computed(() => {
   outline: none;
   -webkit-tap-highlight-color: transparent;
 }
-.navi-item a:hover { color: #5ab4c5; }
-.navi-item.active a { color: #5ab4c5; }
+.navi-item a:hover { color: #58d2eb; }
+.navi-item.active a { color: #58d2eb; }
 
 /* 底部灰線 */
 .line {
@@ -84,7 +84,7 @@ const sliderStyle = computed(() => {
   bottom: .05rem;             /* 緊貼灰線上方 */
   height: .15rem;
   width: calc((100% - 2rem) / 4);
-  background: #5ab4c5;
+  background: #58d2eb;
   border-radius: 999px;
   transition: transform .3s ease;
 }

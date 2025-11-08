@@ -206,7 +206,7 @@ const confirmRedeem = () => {
   justify-content: space-around;
   border-top: 1px solid #ddd;
   background: white;
-  height: 60px;
+  height: 3rem;
   align-items: center;
   font-weight: bold;
   position: sticky;

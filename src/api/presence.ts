@@ -1,9 +1,9 @@
-// src/api/presence.ts
+// src/api/pressence.ts
 import { useAuth } from '@/composables/useAuth'
 
 const API_BASE = import.meta.env.VITE_API_BASE as string
 
-export interface PresencePayload {
+export interface pressencePayload {
   user_id: string
   lng: number
   lat: number
@@ -14,7 +14,7 @@ export interface PresencePayload {
  * 將當前使用者位置傳送給後端
  * @param payload - 包含 user_id, lng, lat, timestamp
  */
-export async function sendPresence(payload: PresencePayload): Promise<void> {
+export async function sendpressence(payload: pressencePayload): Promise<void> {
   const { authHeader } = useAuth()
   const headers = {
     'Content-Type': 'application/json',
@@ -29,6 +29,6 @@ export async function sendPresence(payload: PresencePayload): Promise<void> {
     })
     // 不處理回傳（成功即可）
   } catch (err) {
-    console.error('❌ 傳送 presence 失敗：', err)
+    console.error('❌ 傳送 pressence 失敗：', err)
   }
 }

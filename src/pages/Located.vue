@@ -598,148 +598,153 @@ async function centerToMe() {
     />
   </section>
 </template>
-
 <style scoped>
-/* --- 主題變數（高對比版）--- */
-:root{
-  --pop-bg:#624f4f;
-  --pop-fg:#0b1220;
-  --pop-subtle:#475569;
-  --pop-accent:#1e40af;      /* 主按鈕顏色 */
-  --pop-accent-weak:#18191b; /* chip 淡底 */
-  --pop-border:#8fb5ff;
-  --pop-shadow:0 10px 22px rgba(2,6,23,.10);
-  --pop-radius:12px;
-  --pop-btn-radius:10px;
+/* ===== 顏色與整體風格 ===== */
+:root {
+  --bg: #ffffff;
+  --fg: #0b1220;
+  --accent: #58d2eb;
+  --accent-weak: #e0f6f9;
+  --border: #c5e3e7;
+  --radius: 12px;
+  --shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
 }
 
-/* 卡片本體：更小 */
-:global(.mapboxgl-popup.popup--elev) .pop-card{
-  width: clamp(220px, 30vw, 300px);  /* ← 縮小 */
-  background:var(--pop-bg);
-  color:var(--pop-fg);
-  border:1px solid var(--pop-border);
-  border-radius:var(--pop-radius);
-  box-shadow:var(--pop-shadow);
-  overflow:hidden;
-  display:grid;
+/* ===== Popup 卡片 ===== */
+:global(.mapboxgl-popup.popup--elev) .pop-card {
+  width: clamp(220px, 30vw, 300px);
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  display: grid;
+  overflow: hidden;
 }
 
-/* header：縮小 icon 與間距 */
-:global(.pop-head){
-  display:grid;
-  grid-template-columns:40px 1fr;   /* ← 48px -> 40px */
-  gap:10px;                         /* ← 12 -> 10 */
-  padding:12px 14px 4px;            /* ← 更緊湊 */
-  align-items:center;
+/* Header */
+:global(.pop-head) {
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  gap: 10px;
+  padding: 12px 14px 6px;
+  align-items: center;
 }
-:global(.pop-head__icon){
-  width:40px;height:40px;object-fit:contain;
-  filter: drop-shadow(0 3px 8px rgba(0,0,0,.12));
+:global(.pop-head__icon) {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
 }
-:global(.pop-title){
-  font-size:1rem;                   /* ← 1.05 -> 1.0 */
-  font-weight:800; line-height:1.2;
+:global(.pop-title) {
+  font-size: 1rem;
+  font-weight: 700;
 }
-:global(.pop-subtle){
-  color:var(--pop-subtle); font-size:.88rem; margin-top:4px;
-}
-
-/* chips：保留一顆「可計分場域」 */
-:global(.pop-meta){
-  display:flex; gap:6px; flex-wrap:wrap;
-  padding:0 14px 8px 14px;
-}
-:global(.pop-chip){
-  font-size:.75rem; padding:4px 10px;
-  border-radius:999px; border:1px solid var(--pop-border);
-  background:#afc6de; color:var(--pop-fg);
-}
-:global(.pop-chip--accent){
-  background:var(--pop-accent-weak);
-  color:var(--pop-accent); border-color:transparent; font-weight:700;
+:global(.pop-subtle) {
+  color: #5f7080;
+  font-size: 0.88rem;
+  margin-top: 4px;
 }
 
-/* 分隔線更細 */
-:global(.pop-divider){ height:1px; background:var(--pop-border); margin:2px 0; }
-
-/* 置中單顆按鈕 + 固定寬度 */
-:global(.pop-actions){ padding:10px 14px 12px; }
-:global(.pop-actions--center){
-  display:flex; justify-content:center; align-items:center;
-  color:#cfb6b6;
+/* Chips */
+:global(.pop-meta) {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 0 14px 10px;
 }
-:global(.pop-btn){
-  appearance:none; cursor:pointer;
-  border-radius:var(--pop-btn-radius);
-  font-weight:800; font-size:.95rem;
-  padding:10px 14px;
-  color:#171414;
-  transition: filter .15s ease, transform .02s ease;
+:global(.pop-chip) {
+  font-size: 0.75rem;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--accent-weak);
+  color: var(--fg);
 }
-:global(.pop-btn--primary){
-  background:var(--pop-accent); color:#a35757; border:1px solid var(--pop-accent);
-  min-width: 180px;              /* ← 置中時有個穩定寬度 */
-}
-:global(.pop-btn:hover){ filter:brightness(1.05); }
-:global(.pop-btn:active){ transform:translateY(1px); }
-
-/* popup 氣泡本體保持透明外框 */
-:global(.mapboxgl-popup.popup--elev) .mapboxgl-popup-content{
-  padding:0; background:transparent; border-radius:var(--pop-radius); box-shadow:none;
-}
-:global(.mapboxgl-popup.popup--elev) .mapboxgl-popup-tip{
-  border-top-color:var(--pop-bg) !important;
-  border-bottom-color:var(--pop-bg) !important;
+:global(.pop-chip--accent) {
+  background: var(--accent);
+  color: white;
+  border-color: transparent;
+  font-weight: 700;
 }
 
-/* 深色模式（可留可改） */
-@media (prefers-color-scheme: dark){
-  :root{
-    --pop-bg:#0b1220; --pop-fg:#e6edf6; --pop-subtle:#a2b3c9;
-    --pop-accent:#60a5fa; --pop-accent-weak:#203058; --pop-border:#1f2a37;
-    --pop-shadow:0 10px 28px rgba(0,0,0,.5);
-  }
-  :global(.pop-chip){ background:#cadbff; color:var(--pop-fg); border-color:var(--pop-border); }
-  :global(.mapboxgl-popup.popup--elev) .mapboxgl-popup-tip{
-    border-top-color:var(--pop-bg) !important; border-bottom-color:var(--pop-bg) !important;
-  }
+/* Divider */
+:global(.pop-divider) {
+  height: 1px;
+  background: var(--border);
+  margin: 2px 0;
 }
 
+/* 按鈕區 */
+:global(.pop-actions) {
+  padding: 10px 14px 12px;
+  text-align: center;
+}
+:global(.pop-btn) {
+  appearance: none;
+  cursor: pointer;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  padding: 10px 14px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: white;
+  transition: filter 0.15s ease, transform 0.02s ease;
+}
+:global(.pop-btn:hover) {
+  filter: brightness(1.08);
+}
+:global(.pop-btn:active) {
+  transform: translateY(1px);
+}
 
-.page { position: relative; width: 100%; height: calc(100vh - 2rem); }
-.map { width: 100%; height: 96%; }
+/* Popup 框本體 */
+:global(.mapboxgl-popup.popup--elev) .mapboxgl-popup-content {
+  padding: 0;
+  background: transparent;
+  border-radius: var(--radius);
+  box-shadow: none;
+}
+:global(.mapboxgl-popup.popup--elev) .mapboxgl-popup-tip {
+  border-top-color: var(--bg) !important;
+  border-bottom-color: var(--bg) !important;
+}
 
-/* 左下角浮動按鈕 */
-/* 左下角按鈕堆疊容器 */
-.fab-stack{
+/* ===== 地圖區域 ===== */
+.page {
+  position: relative;
+  width: 100%;
+  height: calc(100vh - 2rem);
+}
+.map {
+  width: 100%;
+  height: 96%;
+}
+
+/* ===== 左下角浮動按鈕 ===== */
+.fab-stack {
   position: absolute;
   left: 12px;
   bottom: 3rem;
   display: flex;
-  flex-direction: column;   /* 直向 */
-  gap: 10px;                /* 這裡控制兩顆鈕距離 */
+  flex-direction: column;
+  gap: 10px;
   z-index: 999;
 }
 
-/* 單顆 FAB 樣式（把定位交給容器就好） */
 .fab {
-  position: static;               /* 重要：由 .fab-stack 負責定位 */
-  padding: .55rem .9rem;
+  position: static;
+  padding: 0.55rem 0.9rem;
   border-radius: 999px;
   border: 1px solid #475259;
-  background: #2c9ae0;
   backdrop-filter: blur(6px);
   box-shadow: 0 4px 16px rgba(66, 35, 35, 0.12);
   cursor: pointer;
-  font-size: .95rem;
-  color: #d7dee3;
+  font-size: 0.95rem;
+  color: #ffffff;
+  
+  background-color: #58d2eb !important;
+  background-color: var(--accent);
+  transition: background-color 0.2s ease;
 }
-
-/* 第二顆可微調色彩（可選） */
-.fab-my{
-  background: #0ea5e9;
-  border-color: #3b82f6;
-}
-
 </style>

@@ -195,7 +195,7 @@ onMounted(() => {
 
 /* 使用者所在列高亮 */
 .userRow {
-  background: linear-gradient(90deg, #4bcde7, #5ab4c5);
+  background: linear-gradient(90deg, #4bcde7, #58d2eb);
   font-weight: bold;
   border-left: 4px solid #0898b5;
 }

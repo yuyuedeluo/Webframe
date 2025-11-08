@@ -22,9 +22,6 @@ onMounted(() => {
 </template>
 
 <style scoped>
-l{
-  color: red;
-}
 main{
   margin: 0;
   padding: 0;
