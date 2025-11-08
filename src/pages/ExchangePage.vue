@@ -73,10 +73,10 @@ const currentTag = ref("all");
 const showDialog = ref(false);
 const success = ref(false);
 const selectedProduct = ref(null);
-const animationReady = ref(false); // 控制動畫啟用
+const animationReady = ref(false);
 
 onMounted(() => {
-  // 延遲啟用 hover 動畫，避免頁面初次載入時觸發動畫閃爍
+  // 延遲啟用 hover 動畫，避免初次進頁時觸發
   setTimeout(() => {
     animationReady.value = true;
   }, 300);
@@ -170,7 +170,7 @@ const confirmRedeem = () => {
 .redeem-page {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100%;
   background-color: #f9f9f9;
 }
 
@@ -198,7 +198,6 @@ const confirmRedeem = () => {
   transition: transform 0.2s ease-in-out;
 }
 
-/* ✅ 只有在 animationReady=true 時啟用 hover 效果 */
 .product-card.hover-enabled:hover {
   transform: scale(1.03);
 }
@@ -213,18 +212,24 @@ const confirmRedeem = () => {
   padding: 0.5rem;
 }
 
-/* 下方導覽列 */
+/* ✅ 底部導覽列固定（sticky） */
 .bottom-nav {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  background: white;
+  border-top: 1px solid #ddd;
+  height: 60px;
   display: flex;
   justify-content: space-around;
-  border-top: 1px solid #ddd;
-  background: white;
-  height: 60px;
   align-items: center;
   font-weight: bold;
+  z-index: 100;
+  bottom: 0;
+  /* margin-top: 30%; */
 }
 
-/* ✅ 移除點擊時藍色背景、focus 外框 */
+/* 移除點擊時藍色背景與 outline */
 .nav-item {
   flex: 1;
   text-align: center;
