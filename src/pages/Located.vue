@@ -237,8 +237,6 @@ function clearRoute() {
 </script>
 
 
-
-
 <template>
   <section class="page">
     <div class="map" ref="mapEl" />
