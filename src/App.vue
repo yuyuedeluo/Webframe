@@ -2,7 +2,7 @@
 import { onMounted } from 'vue'
 import NaviBar from './components/NaviBar.vue'
 import MapView from './components/MapView.vue'
-
+  
 onMounted(() => {
   console.log('App component mounted')
 })
@@ -18,10 +18,6 @@ onMounted(() => {
 </template>
 
 <style scoped>
-body {
-  margin: 0;
-  padding: 0;
-}
 l{
   color: red;
 }
