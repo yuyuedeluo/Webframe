@@ -7,6 +7,7 @@
           v-for="p in filteredProducts"
           :key="p.id"
           class="product-card"
+          :class="{ 'hover-enabled': animationReady }"
           @click="openConfirm(p)"
         >
           <img :src="p.image" alt="商品圖片" class="product-image" />
@@ -66,19 +67,27 @@
 </template>
 
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, onMounted } from "vue";
 
 const currentTag = ref("all");
 const showDialog = ref(false);
 const success = ref(false);
 const selectedProduct = ref(null);
+const animationReady = ref(false);
+
+onMounted(() => {
+  // 延遲啟用 hover 動畫，避免初次進頁時觸發
+  setTimeout(() => {
+    animationReady.value = true;
+  }, 300);
+});
 
 const products = ref([
   {
     id: 1,
     name: "星巴克飲品券",
     points: 300,
-    image: "picture.jpeg",
+    image: "././public/picture.jpeg",
     food: true,
     travel: false,
     entertain: false,
@@ -87,7 +96,7 @@ const products = ref([
     id: 2,
     name: "高鐵車票折扣券",
     points: 1200,
-    image: "picture.jpeg",
+    image: "././public/picture.jpeg",
     food: false,
     travel: true,
     entertain: false,
@@ -96,7 +105,7 @@ const products = ref([
     id: 3,
     name: "電影票兌換券",
     points: 600,
-    image: "picture.jpeg",
+    image: "././public/picture.jpeg",
     food: false,
     travel: false,
     entertain: true,
@@ -105,7 +114,7 @@ const products = ref([
     id: 4,
     name: "餐廳折扣券",
     points: 500,
-    image: "picture.jpeg",
+    image: "././public/picture.jpeg",
     food: true,
     travel: false,
     entertain: false,
@@ -114,7 +123,7 @@ const products = ref([
     id: 5,
     name: "樂園入場券",
     points: 2000,
-    image: "picture.jpeg",
+    image: "././public/picture.jpeg",
     food: false,
     travel: false,
     entertain: true,
@@ -123,7 +132,7 @@ const products = ref([
     id: 6,
     name: "租車折扣券",
     points: 800,
-    image: "picture.jpeg",
+    image: "././public/picture.jpeg",
     food: false,
     travel: true,
     entertain: false,
@@ -161,10 +170,11 @@ const confirmRedeem = () => {
 .redeem-page {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100%;
   background-color: #f9f9f9;
 }
 
+/* 商品區域 */
 .product-container {
   flex: 1;
   overflow-y: auto;
@@ -183,11 +193,12 @@ const confirmRedeem = () => {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
   overflow: hidden;
   text-align: center;
-  transition: transform 0.2s;
   cursor: pointer;
+  transform: scale(1);
+  transition: transform 0.2s ease-in-out;
 }
 
-.product-card:hover {
+.product-card.hover-enabled:hover {
   transform: scale(1.03);
 }
 
@@ -201,18 +212,24 @@ const confirmRedeem = () => {
   padding: 0.5rem;
 }
 
+/* ✅ 底部導覽列固定（sticky） */
 .bottom-nav {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  background: white;
+  border-top: 1px solid #ddd;
+  height: 60px;
   display: flex;
   justify-content: space-around;
-  border-top: 1px solid #ddd;
-  background: white;
-  height: 60px;
   align-items: center;
   font-weight: bold;
-  position: sticky;
+  z-index: 100;
   bottom: 0;
+  /* margin-top: 30%; */
 }
 
+/* 移除點擊時藍色背景與 outline */
 .nav-item {
   flex: 1;
   text-align: center;
@@ -224,6 +241,12 @@ const confirmRedeem = () => {
   outline: none;
 }
 
+.nav-item:focus,
+.nav-item:active {
+  outline: none;
+  background: none;
+}
+
 .nav-item.active {
   color: #00bfff;
   border-top: 3px solid #00bfff;
@@ -233,7 +256,7 @@ const confirmRedeem = () => {
   background: #f0f0f0;
 }
 
-/* 彈窗樣式 */
+/* 彈窗 */
 .dialog-overlay {
   position: fixed;
   top: 0;
@@ -269,6 +292,14 @@ const confirmRedeem = () => {
   cursor: pointer;
   font-weight: bold;
   transition: 0.2s;
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+}
+
+.dialog-buttons button:focus,
+.dialog-buttons button:active {
+  outline: none;
+  background: none;
 }
 
 .confirm {

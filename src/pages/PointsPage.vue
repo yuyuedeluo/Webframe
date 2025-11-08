@@ -1,256 +1,175 @@
-<script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
-import { sendPresence } from '@/api/presence'
-import { useAuth } from '@/composables/useAuth'
+<script setup>
+import { ref, onUnmounted } from 'vue'
 
-const sending = ref(false)
-const message = ref('')
+const isActive = ref(false)
+const showPlus = ref(false)
+const randomX = ref(0)
+const randomDir = ref(1)
+let intervalId = null
 
-const points = ref<number | null>(null)        // 後端的真實分數
-const displayPoints = ref<number>(0)           // 畫面顯示（做補間動畫）
-const lastUpdate = ref<string>('-')
-
-const { authHeader } = useAuth()
-
-/** ========= 傳送定位（按鈕觸發） ========= */
-async function handleSend() {
-  message.value = ''
-  sending.value = true
-
-  navigator.geolocation.getCurrentPosition(async (pos) => {
-    const lng = pos.coords.longitude
-    const lat = pos.coords.latitude
-    const now = new Date().toISOString()
-
-    try {
-      await sendPresence({
-        user_id: 'USER_001',
-        lng,
-        lat,
-        timestamp: now,
-      })
-      message.value = `✅ 已送出 (${lng.toFixed(4)}, ${lat.toFixed(4)})`
-    } catch (err) {
-      console.error(err)
-      message.value = '❌ 傳送失敗'
-    } finally {
-      sending.value = false
-    }
-  }, 
-  (err) => {
-    message.value = '❌ 無法取得定位權限'
-    sending.value = false
-  })
+function toggleColor() {
+  isActive.value = !isActive.value
+  if (isActive.value) startFloating()
+  else stopFloating()
 }
 
-/** ========= 定時抓分 ========= */
-let timer: number | null = null
-async function fetchPoints() {
-  try {
-    const res = await fetch(`${import.meta.env.VITE_API_BASE}/api/points/me`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...authHeader(),
-      },
-    })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    const data = await res.json()
-    const newPoints = Number(data.points ?? 0)
-
-    // 第一次：直接同步
-    if (points.value === null) {
-      points.value = newPoints
-      displayPoints.value = newPoints
-    } else {
-      const old = points.value
-      const diff = newPoints - old
-      points.value = newPoints
-      if (diff !== 0) {
-        triggerDelta(diff)
-        animateNumber(displayPoints.value, newPoints, 500)
-        flashOn.value = false; void nextTickToggleFlash()
-      }
-    }
-
-    const t = new Date()
-    lastUpdate.value = t.toLocaleTimeString('zh-TW', { hour12: false })
-  } catch (err) {
-    console.error('❌ 抓取分數失敗：', err)
-  }
+function startFloating() {
+  intervalId = setInterval(() => {
+    randomX.value = Math.random() * 100 + 50 // 左右漂浮幅度
+    randomDir.value = Math.random() > 0.5 ? 1 : -1 // 隨機方向
+    showPlus.value = true
+    setTimeout(() => (showPlus.value = false), 3500)
+  }, 5000)
 }
 
-onMounted(() => {
-  fetchPoints()
-  timer = window.setInterval(fetchPoints, 5000)
-})
-
-onBeforeUnmount(() => {
-  if (timer) clearInterval(timer)
-  cancelAnim()
-})
-
-/** ========= 分數動畫：數字補間/閃爍/漂浮徽章 ========= */
-let rafId: number | null = null
-function cancelAnim() {
-  if (rafId !== null) {
-    cancelAnimationFrame(rafId)
-    rafId = null
-  }
+function stopFloating() {
+  clearInterval(intervalId)
+  intervalId = null
+  showPlus.value = false
 }
 
-/** 補間 displayPoints 到目標值 */
-function animateNumber(from: number, to: number, duration = 500) {
-  cancelAnim()
-  const start = performance.now()
-  const delta = to - from
-  const ease = (x: number) => 1 - Math.pow(1 - x, 3) // easeOutCubic
-
-  const step = (now: number) => {
-    const t = Math.min(1, (now - start) / duration)
-    displayPoints.value = Math.round(from + delta * ease(t))
-    if (t < 1) {
-      rafId = requestAnimationFrame(step)
-    } else {
-      rafId = null
-      displayPoints.value = to
-    }
-  }
-  rafId = requestAnimationFrame(step)
-}
-
-/** 閃爍效果 */
-const flashOn = ref(false)
-function nextTickToggleFlash() {
-  // 讓 class 重新觸發動畫（移除->下一輪微任務->加回）
-  requestAnimationFrame(() => {
-    flashOn.value = true
-    // 動畫結束自動還原（對應 CSS 動畫 600ms）
-    setTimeout(() => (flashOn.value = false), 620)
-  })
-}
-
-/** 漂浮徽章（+5 / -3） */
-const deltaText = ref<string>('')
-const deltaVisible = ref(false)
-function triggerDelta(diff: number) {
-  deltaText.value = diff > 0 ? `+${diff}` : `${diff}`
-  deltaVisible.value = false // 先關閉一次，確保重播動畫
-  void Promise.resolve().then(() => {
-    deltaVisible.value = true
-    setTimeout(() => (deltaVisible.value = false), 800) // 與動畫時長對齊
-  })
-}
+onUnmounted(() => stopFloating())
 </script>
 
 <template>
-  <div class="presence">
-    <h2>📍 使用者狀態上報</h2>
-
-    <button @click="handleSend" :disabled="sending">
-      {{ sending ? '傳送中…' : '傳送目前位置' }}
-    </button>
-
-    <p class="msg">{{ message }}</p>
-
-    <div class="status">
-      <div class="points-line">
-        <span>🪙 當前分數：</span>
-
-        <!-- 分數數字：會閃爍＆平滑補間 -->
-        <span class="points-value" :class="{ flash: flashOn }">
-          {{ displayPoints }}
-        </span>
-
-        <!-- 漂浮徽章：在數字右上角飄起來 -->
-        <span
-          v-if="deltaVisible"
-          class="delta-badge"
-          :class="{ up: deltaText.startsWith('+'), down: deltaText.startsWith('-') }"
-        >
-          {{ deltaText }}
-        </span>
+  <div class="btn" :class="{ active: isActive }">
+    <!-- +1 漂浮效果 -->
+    <transition name="float">
+      <div
+        v-if="showPlus"
+        class="plusOne"
+        :style="{ '--x': randomX + 'px', '--dir': randomDir }"
+      >
+        +1
       </div>
+    </transition>
 
-      <p>⏰ 上次更新：<strong>{{ lastUpdate }}</strong></p>
-    </div>
+    <!-- 主按鈕 -->
+    <button 
+      class="go-button" 
+      :class="{ active: isActive }" 
+      @click="toggleColor">
+      GO
+      <span v-if="isActive" class="pulse layer1"></span>
+      <span v-if="isActive" class="pulse layer2"></span>
+    </button>
   </div>
 </template>
 
 <style scoped>
-.presence {
-  max-width: 460px;
-  margin: 2rem auto;
-  padding: 1.5rem;
-  border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-  text-align: center;
-  font-family: "Noto Sans TC", "Microsoft JhengHei", sans-serif;
-}
-button {
-  padding: 0.6rem 1.2rem;
-  border: none;
-  border-radius: 8px;
-  background: #2c9ae0;
-  color: white;
-  cursor: pointer;
-  font-size: 1rem;
-  transition: 0.2s;
-}
-button:hover:not([disabled]) { background: #208bc7; }
-button[disabled] { opacity: 0.6; cursor: not-allowed; }
-
-.status {
-  margin-top: 1.25rem;
-  background: #f7faff;
-  border-radius: 8px;
-  padding: 0.9rem;
-}
-
-/* 分數行：為了擺放漂浮徽章，做相對定位 */
-.points-line {
+/* --- 背景 --- */
+.btn {
   position: relative;
-  display: inline-flex;
+  width: 100vw;
+  height: calc(100vh - 60px);
+  display: flex;
+  justify-content: center;
   align-items: center;
-  gap: .4rem;
-  font-size: 1.05rem;
+  background-color: #f5f5f5;
+  overflow: hidden;
 }
 
-/* 分數數字 */
-.points-value {
-  font-weight: 700;
-  font-size: 1.35rem;
-  color: #274b66;
-}
-.points-value.flash {
-  animation: flash 0.6s ease;
-}
-@keyframes flash {
-  0%   { color: #274b66; text-shadow: none; }
-  25%  { color: #1186d4; text-shadow: 0 0 6px rgba(17,134,212,.35); }
-  100% { color: #274b66; text-shadow: none; }
-}
-
-/* 漂浮徽章 (+5/-3) */
-.delta-badge {
+.btn::before {
+  content: "";
   position: absolute;
-  right: -24px;         /* 在數字右側 */
-  top: -6px;            /* 稍微靠上 */
-  font-weight: 700;
-  font-size: .95rem;
+  inset: 0;
+  background: linear-gradient(to bottom, #4aa1b2, #e8f6f8, #4aa1b2);
   opacity: 0;
-  transform: translateY(0);
+  transition: opacity 1.8s ease-in-out;
+  z-index: 0;
+}
+
+.btn.active::before {
+  opacity: 1;
+  animation: breathing 5s ease-in-out infinite;
+}
+
+@keyframes breathing {
+  0% { filter: brightness(0.9); }
+  50% { filter: brightness(1.05); }
+  100% { filter: brightness(0.9); }
+}
+
+/* --- 按鈕 --- */
+.go-button {
+  position: relative;
+  overflow: visible;
+  width: 80vw;
+  height: 15vh;
+  font-size: 50px;
+  font-weight: bold;
+  color: white;
+  background-color: gray;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background-color 0.8s ease-in-out;
+  z-index: 2;
+}
+
+.go-button.active {
+  background-color: #5ab4c5;
+  filter: brightness(1);
+}
+
+/* --- +1 漂浮 --- */
+.plusOne {
+  position: absolute;
+  bottom: 50%; /* 從按鈕中間開始 */
+  font-size: 48px;
+  font-weight: bold;
+  color: #ffffff;
+  opacity: 0;
+  animation: floatDrift 5s ease-in-out forwards;
+  z-index: 0;
+}
+
+/* 飄浮動畫 — 垂直上升 + 左右漂浮 */
+@keyframes floatDrift {
+  0% {
+    /* transform: translate(0, 0); */
+    transform: translate(calc(var(--dir) * var(--x) * 0.5), 0vh);
+    opacity: 0;
+  }
+  
+  30% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(calc(var(--dir) * var(--x) * 1.5), -60vh);
+    opacity: 1;
+  }
+  /* 100% {
+    transform: translate(calc(var(--dir) * var(--x)), -40vh);
+    opacity: 0;
+  } */
+}
+
+
+
+/* --- 心跳漣漪 --- */
+.pulse {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 200%;
+  height: 200%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.4);
   pointer-events: none;
-  animation: floatUp .8s ease forwards;
-}
-.delta-badge.up { color: #22a946; }     /* 漲分：綠色 */
-.delta-badge.down { color: #e44; }      /* 減分：紅色 */
-
-@keyframes floatUp {
-  0%   { transform: translateY(6px); opacity: 0; }
-  20%  { opacity: 1; }
-  100% { transform: translateY(-14px); opacity: 0; }
+  animation: pulseWave 3s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
-.msg { color: #444; margin-top: 0.75rem; }
+.layer2 {
+  animation-delay: 1.5s;
+}
+
+@keyframes pulseWave {
+  0% { transform: translate(-50%, -50%) scale(0.6); opacity: 0.8; }
+  25% { transform: translate(-50%, -50%) scale(1.1); opacity: 0.6; }
+  50% { transform: translate(-50%, -50%) scale(1.6); opacity: 0.4; }
+  75% { transform: translate(-50%, -50%) scale(2.1); opacity: 0.2; }
+  100% { transform: translate(-50%, -50%) scale(2.7); opacity: 0; }
+}
 </style>

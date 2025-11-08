@@ -55,10 +55,11 @@ async function handleSubmit() {
     // 其他錯誤（無法歸類）
     throw new Error(s.data?.detail || s.data?.message || '發生未知錯誤')
   } catch (err: any) {
-    popupText.value = `失敗：${err?.message ?? '請稍後重試'}`
-    showPopup.value = true
+    message.value = `❌ 登入失敗`
+    showLogin.value = false;
   } finally {
     loading.value = false
+
   }
 }
 
