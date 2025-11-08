@@ -150,7 +150,10 @@ const medalClass = (rank) =>
   top: 0;
   z-index: 10;
   background: var(--me-grad);
-  color: rgb(131, 37, 37);
+  color: #2e6975;
+  border-left: 4px solid #5ab4c5;
+  background: linear-gradient(90deg, rgba(118, 205, 255, 0.1), rgba(255,255,255,.9));
+  /* background: rgba(255,255,255,.85); */
   display: grid;
   grid-template-columns: 90px 1fr 160px;
   align-items:center;
@@ -214,7 +217,7 @@ const medalClass = (rank) =>
 
 .score-num{ font-weight: 900; color: var(--ink-900); }
 .score-bar{ width:100%; height:6px; border-radius:999px; background:#e6eefc; margin-top:6px; overflow:hidden; }
-.score-bar__fill{ height:100%; background: linear-gradient(90deg, #7fb2ff, #f08d8d); }
+.score-bar__fill{ height:100%; background: linear-gradient(90deg, #55bbcd, #8a81db); }
 
 /* ===== 前三名特效 ===== */
 .player.is-gold { background: linear-gradient(180deg, #fff8db, #fff); }
@@ -236,7 +239,7 @@ const medalClass = (rank) =>
 
 /* ===== 清單中使用者高亮 ===== */
 .userRow{
-  border-left: 4px solid #ed763b;
-  background: linear-gradient(90deg, rgba(255, 19, 19, 0.1), rgba(255,255,255,.9));
+  border-left: 4px solid #5ab4c5;
+  background: linear-gradient(90deg, rgba(118, 205, 255, 0.1), rgba(255,255,255,.9));
 }
 </style>
