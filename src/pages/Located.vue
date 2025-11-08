@@ -739,7 +739,6 @@ async function centerToMe() {
   padding: 0.55rem 0.9rem;
   border-radius: 999px;
   border: 1px solid #475259;
-  backdrop-filter: blur(6px);
   box-shadow: 0 4px 16px rgba(66, 35, 35, 0.12);
   cursor: pointer;
   font-size: 0.95rem;

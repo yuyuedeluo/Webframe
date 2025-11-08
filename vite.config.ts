@@ -19,7 +19,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: '${VITE_API_BASE}/api/dataset',
         changeOrigin: true,
         // 若後端不是以 /api 開頭，可開下面這行做路徑改寫
         // rewrite: (path) => path.replace(/^\/api/, ''),

@@ -6,6 +6,6 @@ export interface DatasetResponse {
 }
 
 export async function getDataset() {
-  const res = await http.get<DatasetResponse>('http://localhost:8000/api/dataset')
+  const res = await http.get<DatasetResponse>('${VITE_API_BASE}api/dataset')
   return res.data
 }
