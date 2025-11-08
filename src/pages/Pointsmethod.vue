@@ -13,26 +13,51 @@ const lastUpdate = ref<string>('-')
 const { authHeader } = useAuth()
 
 /** ========= 傳送定位（按鈕觸發） ========= */
+async function handleSend() {
+  message.value = ''
+  sending.value = true
+
+  navigator.geolocation.getCurrentPosition(async (pos) => {
+    const lng = pos.coords.longitude
+    const lat = pos.coords.latitude
+    const now = new Date().toISOString()
+
+    try {
+      await sendpressence({
+        user_id: 'USER_001',
+        lng,
+        lat,
+        timestamp: now,
+      })
+      message.value = `✅ 已送出 (${lng.toFixed(4)}, ${lat.toFixed(4)})`
+    } catch (err) {
+      console.error(err)
+      message.value = '❌ 傳送失敗'
+    } finally {
+      sending.value = false
+    }
+  }, 
+  (err) => {
+    message.value = '❌ 無法取得定位權限'
+    sending.value = false
+  })
+}
+
+/** ========= 定時抓分 ========= */
+let timer: number | null = null
 async function fetchPoints() {
   try {
-    // 🟦 改用 POST 方法
     const res = await fetch(`${import.meta.env.VITE_API_BASE}/api/points/me`, {
-      method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...authHeader(),
       },
-      // 🟦 加上 body（若後端不需要，可留空物件）
-      body: JSON.stringify({
-        user_id: 'USER_001'
-      }),
     })
-
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const data = await res.json()
     const newPoints = Number(data.points ?? 0)
 
-    // --- 以下邏輯保持不變 ---
+    // 第一次：直接同步
     if (points.value === null) {
       points.value = newPoints
       displayPoints.value = newPoints
