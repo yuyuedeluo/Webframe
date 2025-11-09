@@ -12,6 +12,7 @@
       <div class="lb-subtitle"></div>
     </div>
 
+
     <!-- 使用者列（始終顯示本人，不在榜上則 rank 顯示 —、score 顯示 0） -->
     <div
       class="User grid-3"
@@ -21,7 +22,9 @@
       <div class="rank-col">{{ userView.rank || '—' }}</div>
       <div class="name-col">{{ userView.name }}</div>
       <div class="score-col">
-        <div class="score-num">{{ userView.score }}</div>
+        <div class="score-num">
+          {{ userView.score }}
+        </div>
       </div>
     </div>
 
