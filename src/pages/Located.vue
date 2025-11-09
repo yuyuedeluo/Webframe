@@ -129,9 +129,10 @@ async function ensureIconsLoaded() {
 let userMarker: mapboxgl.Marker | null = null
 let destMarker: mapboxgl.Marker | null = null
 const currentDest = ref<[number, number] | null>(null)
+const API_BASE   = import.meta.env.VITE_API_BASE as string
 
 /* ===== 後端資料（外層 data: [...]） ===== */
-const DATA_URL = `${VITE_API_BASE}/api/dataset`
+const DATA_URL =`${API_BASE}/api/dataset`
 
 type Row = {
   id: number
